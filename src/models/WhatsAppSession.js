@@ -42,7 +42,4 @@ const whatsappSessionSchema = new Schema({
   timestamps: true
 });
 
-// Índice para búsquedas rápidas
-whatsappSessionSchema.index({ clientId: 1 });
-
 export default model('WhatsAppSession', whatsappSessionSchema);
