@@ -35,10 +35,7 @@ client.on("qr", async (qr) => {
 
 client.on("authenticated", async () => {
   console.log("✅ Sesión autenticada correctamente");
-  // Esperar unos segundos y luego inicializar
-  setTimeout(() => {
-    client.emit("ready");
-  }, 5000); // 5 segundos de espera
+  // El ready se emitirá desde change_state cuando CONNECTED
 });
 
 
@@ -47,6 +44,11 @@ client.on("ready", async () => {
   // 💾 Marcar como listo en MongoDB
   await markAsReadyInMongo("default");
   console.log("✅ Cliente listo y conectado (MongoDB)");
+  
+  // ✅ Iniciar poller SOLO cuando estemos completamente listos
+  if (!autoSaveSessionId) {
+    startPoller();
+  }
 });
 
 client.on("auth_failure", (err) => {
@@ -92,18 +94,8 @@ const startPoller = () => {
   console.log("[Poller] Iniciado - guardará sesión cada 30s");
 };
 
-// Iniciar poller DESPUÉS de autenticación, no antes
-client.on("authenticated", async () => {
-  console.log("✅ Sesión autenticada correctamente");
-  
-  // Iniciar poller SOLO después de autenticar
-  setTimeout(() => {
-    if (!pollerId && !autoSaveSessionId) {
-      startPoller();
-    }
-    client.emit("ready");
-  }, 5000);
-});
+// Iniciar poller DESPUÉS de que ready se emita
+
 
 
 // ---------------------- FUNCIONES ----------------------
