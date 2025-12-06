@@ -4,35 +4,42 @@
  * ✅ SIN crear carpetas en el disco - TODO en MongoDB
  */
 import WhatsAppSession from '../models/WhatsAppSession.js';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 // Importar correctamente desde whatsapp-web.js
 import pkg from 'whatsapp-web.js';
-const { LocalAuth } = pkg;
+const { LocalAuth, AuthenticationTicketKind } = pkg;
 
 // Extender LocalAuth y sobrescribir COMPLETAMENTE el almacenamiento
 export class MongoDBAuth extends LocalAuth {
   constructor(clientId = 'default') {
-    // ✅ NO crear carpeta: no pasar dataPath
-    super({ clientId, dataPath: null });
+    // Usar directorio temporal para LocalAuth (será ignorado, usamos MongoDB)
+    const tempDir = path.join(os.tmpdir(), 'whatsapp-sessions', clientId);
+    super({ clientId, dataPath: tempDir });
     this.clientId = clientId;
     this.lastSaveTime = 0;
-    this.capturedSessionData = null; // 🔑 Guardar sesión capturada localmente
+    this.capturedSessionData = null;
   }
 
   async beforeBrowserInitialize() {
-    // Recuperar sesión existente de MongoDB
     console.log(`[MongoDB Auth] Buscando sesión para clientId: ${this.clientId}`);
     
     try {
       const sessionDoc = await WhatsAppSession.findOne({ clientId: this.clientId });
       
-      if (sessionDoc && sessionDoc.sessionData) {
-        console.log(`[MongoDB Auth] ✅ Sesión encontrada en MongoDB`);
+      if (sessionDoc && sessionDoc.sessionData && Object.keys(sessionDoc.sessionData).length > 0) {
+        console.log(`[MongoDB Auth] ✅ Sesión encontrada en MongoDB - restaurando...`);
+        
+        // 🔑 CRÍTICO: Establecer la sesión en this.session (que LocalAuth usa)
         this.session = sessionDoc.sessionData;
         this.capturedSessionData = sessionDoc.sessionData;
+        
+        console.log(`[MongoDB Auth] ✅ Sesión restaurada con éxito (${Object.keys(this.session).length} propiedades)`);
         return this.session;
       } else {
-        console.log(`[MongoDB Auth] ⚠️ No hay sesión en MongoDB, será creada al autenticar`);
+        console.log(`[MongoDB Auth] ⚠️ No hay sesión válida en MongoDB`);
         return null;
       }
     } catch (err) {
@@ -42,55 +49,40 @@ export class MongoDBAuth extends LocalAuth {
   }
 
   async afterAuthRestore() {
-    console.log(`[MongoDB Auth] Sesión restaurada para ${this.clientId}`);
+    console.log(`[MongoDB Auth] afterAuthRestore llamado`);
     
     try {
-      // Guardar/actualizar sesión en MongoDB
-      if (this.session) {
-        console.log(`[MongoDB Auth] Guardando sesión... tamaño: ${JSON.stringify(this.session).length} bytes`);
-        this.capturedSessionData = this.session;
-        
-        const result = await WhatsAppSession.updateOne(
-          { clientId: this.clientId },
-          {
-            $set: {
-              sessionData: this.session,
-              isReady: true,
-              readyAt: new Date(),
-              updatedAt: new Date()
-            }
-          },
-          { upsert: true }
-        );
-        
-        console.log(`[MongoDB Auth] ✅ Sesión guardada en MongoDB - Modified: ${result.modifiedCount}, Upserted: ${result.upsertedCount}`);
-      } else {
-        console.warn(`[MongoDB Auth] ⚠️ No hay sessionData para guardar`);
+      if (this.session && Object.keys(this.session).length > 0) {
+        console.log(`[MongoDB Auth] Guardando sesión desde afterAuthRestore...`);
+        await this.saveSessionToMongo(this.session);
       }
     } catch (err) {
-      console.error(`[MongoDB Auth] Error guardando sesión:`, err.message);
+      console.error(`[MongoDB Auth] Error en afterAuthRestore:`, err.message);
     }
   }
 
   async afterBrowserClose() {
     console.log(`[MongoDB Auth] Navegador cerrado para ${this.clientId}`);
-    // Guardar sesión final antes de cerrar
-    if (this.session || this.capturedSessionData) {
-      await this.saveSessionToMongo();
+    if (this.session && Object.keys(this.session).length > 0) {
+      await this.saveSessionToMongo(this.session);
     }
   }
 
-  // 🔑 SOBRESCRIBIR saveCreds - se llama internamente cuando LocalAuth guarda
+  // 🔑 SOBRESCRIBIR saveCreds - se llama cuando LocalAuth quiere guardar
   async saveCreds(creds) {
     try {
-      console.log(`[MongoDB Auth] saveCreds llamado - capturando sesión...`);
-      console.log(`[MongoDB Auth] Tipo de creds:`, typeof creds);
-      console.log(`[MongoDB Auth] Claves de creds:`, Object.keys(creds || {}).slice(0, 5)); // Primeras 5 claves
+      console.log(`[MongoDB Auth] saveCreds llamado`);
       
-      // 💾 Guardar credenciales/sesión capturadas
+      if (!creds || Object.keys(creds).length === 0) {
+        console.warn(`[MongoDB Auth] saveCreds: credenciales vacías`);
+        return;
+      }
+      
+      console.log(`[MongoDB Auth] Capturando credenciales (${Object.keys(creds).length} claves)`);
       this.capturedSessionData = creds;
+      this.session = creds;
       
-      // INMEDIATAMENTE guardar a MongoDB
+      // Guardar inmediatamente a MongoDB
       await WhatsAppSession.updateOne(
         { clientId: this.clientId },
         {
@@ -102,9 +94,30 @@ export class MongoDBAuth extends LocalAuth {
         { upsert: true }
       );
       
-      console.log(`[MongoDB Auth] ✅ Credenciales guardadas a MongoDB desde saveCreds`);
+      console.log(`[MongoDB Auth] ✅ Credenciales guardadas en MongoDB desde saveCreds`);
     } catch (err) {
       console.error(`[MongoDB Auth] Error en saveCreds:`, err.message);
+    }
+  }
+
+  // 🔑 SOBRESCRIBIR loadCreds - se llama cuando LocalAuth quiere cargar
+  async loadCreds() {
+    try {
+      console.log(`[MongoDB Auth] loadCreds llamado`);
+      
+      const sessionDoc = await WhatsAppSession.findOne({ clientId: this.clientId });
+      
+      if (sessionDoc && sessionDoc.sessionData && Object.keys(sessionDoc.sessionData).length > 0) {
+        console.log(`[MongoDB Auth] ✅ loadCreds: Credenciales encontradas en MongoDB`);
+        this.session = sessionDoc.sessionData;
+        return sessionDoc.sessionData;
+      } else {
+        console.log(`[MongoDB Auth] ⚠️ loadCreds: No hay credenciales en MongoDB`);
+        return null;
+      }
+    } catch (err) {
+      console.error(`[MongoDB Auth] Error en loadCreds:`, err);
+      return null;
     }
   }
 
@@ -112,22 +125,18 @@ export class MongoDBAuth extends LocalAuth {
   async saveSessionToMongo(sessionData = null) {
     try {
       const now = Date.now();
-      // No guardar más de una vez cada 5 segundos para no saturar BD
       if (now - this.lastSaveTime < 5000) return;
       
       this.lastSaveTime = now;
       
-      // 🔑 IMPORTANTE: Si se pasa sessionData como parámetro, usarla
-      // Si no, intentar obtener de this.session, this.capturedSessionData o this.sessionData
-      const sessionToSave = sessionData || this.capturedSessionData || this.session || this.sessionData || {};
+      const sessionToSave = sessionData || this.capturedSessionData || this.session || {};
       
       if (!sessionToSave || Object.keys(sessionToSave).length === 0) {
-        console.warn(`[MongoDB Auth] ⚠️ No hay sesión para guardar (objeto vacío)`);
+        console.warn(`[MongoDB Auth] ⚠️ No hay sesión para guardar`);
         return;
       }
 
-      console.log(`[MongoDB Auth] Guardando sesión - Datos: ${Object.keys(sessionToSave).length} claves`);
-      console.log(`[MongoDB Auth] Claves de sesión: ${Object.keys(sessionToSave).slice(0, 10).join(', ')}`);
+      console.log(`[MongoDB Auth] Guardando sesión - ${Object.keys(sessionToSave).length} claves`);
 
       await WhatsAppSession.updateOne(
         { clientId: this.clientId },
@@ -140,9 +149,9 @@ export class MongoDBAuth extends LocalAuth {
         { upsert: true }
       );
       
-      console.log(`[MongoDB Auth] ✅ Sesión guardada manualmente en MongoDB`);
+      console.log(`[MongoDB Auth] ✅ Sesión guardada en MongoDB`);
     } catch (err) {
-      console.error(`[MongoDB Auth] Error guardando sesión manualmente:`, err.message);
+      console.error(`[MongoDB Auth] Error guardando sesión:`, err.message);
     }
   }
 }
