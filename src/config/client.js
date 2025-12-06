@@ -36,9 +36,14 @@ client.on("qr", async (qr) => {
   console.log("📌 QR generado y guardado en MongoDB. Escanea en /qr");
 });
 
-client.on("authenticated", async () => {
+client.on("authenticated", async (session) => {
   console.log("✅ Sesión autenticada correctamente");
-  // El ready se emitirá desde change_state cuando CONNECTED
+  console.log(`[Authenticated] Sesión objeto:`, session);
+  
+  // 💾 Guardar sesión capturada desde evento authenticated
+  if (session && mongoDBAuthInstance) {
+    await mongoDBAuthInstance.saveSessionToMongo(session);
+  }
 });
 
 
@@ -48,12 +53,34 @@ client.on("ready", async () => {
   await markAsReadyInMongo("default");
   console.log("✅ Cliente listo y conectado (MongoDB)");
   
-  // ✅ FORZAR GUARDAR SESIÓN INMEDIATAMENTE cuando está lista
-  console.log("[Ready] Guardando sesión de forma forzada...");
-  if (mongoDBAuthInstance && mongoDBAuthInstance.session) {
-    await mongoDBAuthInstance.saveSessionToMongo();
-  } else {
-    console.warn("[Ready] ⚠️ No se encontró sesión en mongoDBAuthInstance");
+  // ✅ INTENTAR OBTENER SESIÓN DEL CLIENTE - múltiples formas
+  console.log("[Ready] Intentando capturar sesión del cliente...");
+  
+  try {
+    // Opción 1: Desde el cliente directamente
+    if (client.authStrategy && client.authStrategy.session) {
+      console.log("[Ready] ✅ Sesión encontrada en client.authStrategy.session");
+      await mongoDBAuthInstance.saveSessionToMongo(client.authStrategy.session);
+    } 
+    // Opción 2: Desde la instancia de MongoDB Auth
+    else if (mongoDBAuthInstance && mongoDBAuthInstance.session) {
+      console.log("[Ready] ✅ Sesión encontrada en mongoDBAuthInstance.session");
+      await mongoDBAuthInstance.saveSessionToMongo(mongoDBAuthInstance.session);
+    }
+    // Opción 3: Intentar obtener del objeto interno del cliente
+    else if (client.pupBrowser) {
+      console.log("[Ready] ⚠️ Cliente listo pero sesión no accesible via propiedades públicas");
+      // WhatsApp Web.js guarda sesión internamente en archivos
+      // Intentamos forzar un guardado de cualquier forma
+      await mongoDBAuthInstance.saveSessionToMongo({
+        ready: true,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      console.warn("[Ready] ⚠️ No se encontró sesión en ninguna ubicación esperada");
+    }
+  } catch (err) {
+    console.error("[Ready] Error al intentar capturar sesión:", err.message);
   }
   
   // ✅ Iniciar poller SOLO cuando estemos completamente listos
