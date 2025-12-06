@@ -92,8 +92,16 @@ const sendMessage = async (req, res) => {
  * GET /qr
  */
 const getQR = async (req, res) => {
-  if (getIsReady()) return res.json({ ready: true, qr: null });
-  res.json({ ready: false, qr: getLastQR() });
+  try {
+    if (getIsReady()) return res.json({ ready: true, qr: null });
+    
+    // getLastQR ahora es async
+    const qr = await getLastQR();
+    res.json({ ready: false, qr });
+  } catch (err) {
+    console.error("Error en getQR:", err);
+    res.status(500).json({ error: err.message });
+  }
 };
 
 /**

@@ -1,17 +1,14 @@
 // client.js
 import pkg from "whatsapp-web.js";
-const { Client, LocalAuth, MessageMedia } = pkg;
+const { Client, MessageMedia } = pkg;
 import qrcode from "qrcode";
+import { MongoDBAuth, saveQRToMongo, markAsReadyInMongo, getQRFromMongo } from "./mongoDBAuth.js";
 
 let lastQR = null;
 let readyAt = null;
 
 const client = new Client({
-  authStrategy: new LocalAuth({
-    clientId: "default",
-    dataPath: "./.wwebjs_auth", // sesión persistente
-    rmMaxRetries: 8,
-  }),
+  authStrategy: new MongoDBAuth("default"), // 🔄 Usar MongoDB en lugar de LocalAuth
   puppeteer: {
     headless: true,
     args: [
@@ -27,7 +24,9 @@ const client = new Client({
 // ---------------------- EVENTOS ----------------------
 client.on("qr", async (qr) => {
   lastQR = await qrcode.toDataURL(qr);
-  console.log("📌 QR generado. Escanea en /qr");
+  // 💾 Guardar QR en MongoDB para persistencia
+  await saveQRToMongo("default", lastQR);
+  console.log("📌 QR generado y guardado en MongoDB. Escanea en /qr");
 });
 
 client.on("authenticated", async () => {
@@ -39,9 +38,11 @@ client.on("authenticated", async () => {
 });
 
 
-client.on("ready", () => {
+client.on("ready", async () => {
   readyAt = Date.now();
-  console.log("✅ Cliente listo y conectado");
+  // 💾 Marcar como listo en MongoDB
+  await markAsReadyInMongo("default");
+  console.log("✅ Cliente listo y conectado (MongoDB)");
 });
 
 client.on("auth_failure", (err) => {
@@ -50,12 +51,14 @@ client.on("auth_failure", (err) => {
 
 client.on("disconnected", (reason) => {
   console.warn("⚠️ Cliente desconectado:", reason);
+  readyAt = null; // Reset estado
 });
 
-client.on("change_state", (state) => {
+client.on("change_state", async (state) => {
   console.log("➡️ Estado del cliente:", state);
   if (state === "CONNECTED" && !readyAt) {
     readyAt = Date.now();
+    await markAsReadyInMongo("default");
     console.log("✅ Cliente listo y conectado (desde change_state)");
   }
 });
@@ -90,8 +93,12 @@ const getIsReady = () => !!readyAt;
 // Última hora de ready
 const getReadyAt = () => readyAt;
 
-// Último QR generado
-const getLastQR = () => lastQR;
+// Último QR generado (con fallback a MongoDB)
+const getLastQR = async () => {
+  if (lastQR) return lastQR;
+  // Si no está en memoria, intentar recuperar de MongoDB
+  return await getQRFromMongo("default");
+};
 
 // Inicializar cliente
 client.initialize();
