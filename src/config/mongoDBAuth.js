@@ -1,6 +1,7 @@
 /**
  * MongoDB Auth Strategy para WhatsApp Web.js
  * Almacena y recupera sesiones de WhatsApp desde MongoDB en lugar de archivos
+ * ✅ SIN crear carpetas en el disco - TODO en MongoDB
  */
 import WhatsAppSession from '../models/WhatsAppSession.js';
 
@@ -8,10 +9,11 @@ import WhatsAppSession from '../models/WhatsAppSession.js';
 import pkg from 'whatsapp-web.js';
 const { LocalAuth } = pkg;
 
-// Extender LocalAuth y sobrescribir el almacenamiento
+// Extender LocalAuth y sobrescribir COMPLETAMENTE el almacenamiento
 export class MongoDBAuth extends LocalAuth {
   constructor(clientId = 'default') {
-    super({ clientId });
+    // ✅ NO crear carpeta: no pasar dataPath
+    super({ clientId, dataPath: null });
     this.clientId = clientId;
     this.lastSaveTime = 0;
   }
@@ -161,5 +163,28 @@ export async function deleteSessionFromMongo(clientId) {
     console.log(`[MongoDB Auth] Sesión eliminada: ${clientId}`);
   } catch (err) {
     console.error(`[MongoDB Auth] Error eliminando sesión:`, err);
+  }
+}
+
+// ✅ NUEVA: Limpiar carpeta .wwebjs_cache si existe (para Render)
+export async function cleanupLocalCache() {
+  try {
+    const fs = await import('fs').then(m => m.default);
+    const path = await import('path').then(m => m.default);
+    
+    const cacheDir = path.resolve('.wwebjs_cache');
+    
+    // Verificar si la carpeta existe
+    if (fs.existsSync(cacheDir)) {
+      console.log(`[Cache] Eliminando carpeta local .wwebjs_cache...`);
+      
+      // Eliminar recursivamente
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+      console.log(`[Cache] ✅ .wwebjs_cache eliminada`);
+    } else {
+      console.log(`[Cache] No hay carpeta .wwebjs_cache`);
+    }
+  } catch (err) {
+    console.error(`[Cache] Error limpiando .wwebjs_cache:`, err.message);
   }
 }

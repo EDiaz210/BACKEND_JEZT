@@ -2,7 +2,10 @@
 import pkg from "whatsapp-web.js";
 const { Client, MessageMedia } = pkg;
 import qrcode from "qrcode";
-import { MongoDBAuth, saveQRToMongo, markAsReadyInMongo, getQRFromMongo } from "./mongoDBAuth.js";
+import { MongoDBAuth, saveQRToMongo, markAsReadyInMongo, getQRFromMongo, cleanupLocalCache } from "./mongoDBAuth.js";
+
+// ✅ LIMPIAR CARPETA LOCAL AL INICIAR (importante para Render con límite de almacenamiento)
+await cleanupLocalCache();
 
 let lastQR = null;
 let readyAt = null;
