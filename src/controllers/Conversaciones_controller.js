@@ -71,18 +71,33 @@ export const enviarPregunta = async (req, res) => {
       console.log(`Llamando a Python: ${PYTHON_BACKEND_URL}/api/chat`);
       
       // 🔑 OBTENER TOKEN DEL REQUEST ACTUAL
-      const token = req.headers.authorization?.split(' ')[1];
+      const authHeader = req.headers.authorization;
+      console.log(`[DEBUG] Authorization header recibido: ${authHeader ? 'SÍ' : 'NO'}`);
+      
+      const token = authHeader?.split(' ')[1];
+      console.log(`[DEBUG] Token extraído: ${token ? token.substring(0, 20) + '...' : 'VACÍO'}`);
+      
       if (!token) {
         console.warn("⚠️  No se encontró token JWT en el request");
       }
       
       //  LLAMAR A PYTHON CON STREAMING (INCLUYENDO TOKEN)
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log(`[DEBUG] Token agregado al header de Python`);
+      } else {
+        console.warn(`[WARNING] Sin token - llamada a Python sin autenticación`);
+      }
+      
+      console.log(`[DEBUG] Headers enviados a Python:`, Object.keys(headers));
+      
       const pythonResponse = await fetch(`${PYTHON_BACKEND_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })  // ✅ Token incluido
-        },
+        headers,
         body: JSON.stringify({
           pregunta: question,
           streaming: true,
@@ -229,18 +244,31 @@ export const calificarRespuesta = async (req, res) => {
     }
 
     // 🔑 OBTENER TOKEN DEL REQUEST ACTUAL
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
+    console.log(`[DEBUG] Authorization header recibido: ${authHeader ? 'SÍ' : 'NO'}`);
+    
+    const token = authHeader?.split(' ')[1];
+    console.log(`[DEBUG] Token extraído: ${token ? token.substring(0, 20) + '...' : 'VACÍO'}`);
+    
     if (!token) {
       console.warn("⚠️  No se encontró token JWT en el request");
     }
 
     //  ENVIAR CALIFICACIÓN AL BACKEND PYTHON (INCLUYENDO TOKEN)
+    const headersCalificar = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (token) {
+      headersCalificar['Authorization'] = `Bearer ${token}`;
+      console.log(`[DEBUG] Token agregado al header de Python`);
+    } else {
+      console.warn(`[WARNING] Sin token - llamada a Python sin autenticación`);
+    }
+    
     const response = await fetch(`${PYTHON_BACKEND_URL}/api/calificar-respuesta`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })  // ✅ Token incluido
-      },
+      headers: headersCalificar,
       body: JSON.stringify({
         id_respuesta: id_respuesta_python,
         calificacion: parseInt(calificacion),
