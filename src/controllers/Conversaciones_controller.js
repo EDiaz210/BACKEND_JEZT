@@ -70,11 +70,18 @@ export const enviarPregunta = async (req, res) => {
     try {
       console.log(`Llamando a Python: ${PYTHON_BACKEND_URL}/api/chat`);
       
-      //  LLAMAR A PYTHON CON STREAMING
+      // 🔑 OBTENER TOKEN DEL REQUEST ACTUAL
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) {
+        console.warn("⚠️  No se encontró token JWT en el request");
+      }
+      
+      //  LLAMAR A PYTHON CON STREAMING (INCLUYENDO TOKEN)
       const pythonResponse = await fetch(`${PYTHON_BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })  // ✅ Token incluido
         },
         body: JSON.stringify({
           pregunta: question,
@@ -221,11 +228,18 @@ export const calificarRespuesta = async (req, res) => {
       }
     }
 
-    //  ENVIAR CALIFICACIÓN AL BACKEND PYTHON
+    // 🔑 OBTENER TOKEN DEL REQUEST ACTUAL
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      console.warn("⚠️  No se encontró token JWT en el request");
+    }
+
+    //  ENVIAR CALIFICACIÓN AL BACKEND PYTHON (INCLUYENDO TOKEN)
     const response = await fetch(`${PYTHON_BACKEND_URL}/api/calificar-respuesta`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })  // ✅ Token incluido
       },
       body: JSON.stringify({
         id_respuesta: id_respuesta_python,
