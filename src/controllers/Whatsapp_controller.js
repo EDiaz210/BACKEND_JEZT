@@ -215,9 +215,18 @@ const sendMessageN8N = async (req, res) => {
  */
 const logout = async (req, res) => {
   try {
+    // Importar la función para eliminar sesión de MongoDB
+    const { deleteSessionFromMongo } = await import('../config/mongoDBAuth.js');
+    
+    // Cerrar sesión del cliente WhatsApp
     await client.logout();
     console.log("[WHATSAPP] Sesión cerrada");
-    res.json({ ok: true, message: "Sesión de WhatsApp cerrada" });
+    
+    // Eliminar sesión de MongoDB
+    await deleteSessionFromMongo("default");
+    console.log("[WHATSAPP] Sesión eliminada de MongoDB");
+    
+    res.json({ ok: true, message: "Sesión de WhatsApp cerrada y eliminada" });
   } catch (err) {
     console.error("[WHATSAPP] Error en logout:", err.message);
     res.status(500).json({ error: err.message });
