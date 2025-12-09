@@ -21,7 +21,7 @@ export class MongoDBAuth extends LocalAuth {
     this.clientId = clientId;
     this.lastSaveTime = 0;
     this.capturedSessionData = null;
-    this._session = null; // 🔑 Variable interna para el getter/setter
+    this._session = null; // Variable interna para el getter/setter
   }
 
   async beforeBrowserInitialize() {
@@ -31,15 +31,15 @@ export class MongoDBAuth extends LocalAuth {
       const sessionDoc = await WhatsAppSession.findOne({ clientId: this.clientId });
       
       if (sessionDoc && sessionDoc.sessionData && Object.keys(sessionDoc.sessionData).length > 0) {
-        console.log(`[MongoDB Auth] ✅ Sesión encontrada en MongoDB - restaurando...`);
+        console.log(`[MongoDB Auth] Sesión encontrada en MongoDB - restaurando...`);
         
-        // 🔑 USAR EL SETTER para activar la sincronización
+        // Usar el setter para activar la sincronización
         this.session = sessionDoc.sessionData;
         
-        console.log(`[MongoDB Auth] ✅ Sesión restaurada con éxito (${Object.keys(this.session).length} propiedades)`);
+        console.log(`[MongoDB Auth] Sesión restaurada con éxito (${Object.keys(this.session).length} propiedades)`);
         return this.session;
       } else {
-        console.log(`[MongoDB Auth] ⚠️ No hay sesión válida en MongoDB`);
+        console.log(`[MongoDB Auth] No hay sesión válida en MongoDB`);
         return null;
       }
     } catch (err) {
@@ -68,7 +68,7 @@ export class MongoDBAuth extends LocalAuth {
     }
   }
 
-  // 🔑 SOBRESCRIBIR saveCreds - se llama cuando LocalAuth quiere guardar
+  // Sobrescribir saveCreds - se llama cuando LocalAuth quiere guardar
   async saveCreds(creds) {
     try {
       console.log(`[MongoDB Auth] saveCreds llamado`);
@@ -94,13 +94,13 @@ export class MongoDBAuth extends LocalAuth {
         { upsert: true }
       );
       
-      console.log(`[MongoDB Auth] ✅ Credenciales guardadas en MongoDB desde saveCreds`);
+      console.log(`[MongoDB Auth] Credenciales guardadas en MongoDB desde saveCreds`);
     } catch (err) {
       console.error(`[MongoDB Auth] Error en saveCreds:`, err.message);
     }
   }
 
-  // 🔑 SOBRESCRIBIR loadCreds - se llama cuando LocalAuth quiere cargar
+  // Sobrescribir loadCreds - se llama cuando LocalAuth quiere cargar
   async loadCreds() {
     try {
       console.log(`[MongoDB Auth] loadCreds llamado`);
@@ -108,12 +108,12 @@ export class MongoDBAuth extends LocalAuth {
       const sessionDoc = await WhatsAppSession.findOne({ clientId: this.clientId });
       
       if (sessionDoc && sessionDoc.sessionData && Object.keys(sessionDoc.sessionData).length > 0) {
-        console.log(`[MongoDB Auth] ✅ loadCreds: Credenciales encontradas en MongoDB`);
+        console.log(`[MongoDB Auth] loadCreds: Credenciales encontradas en MongoDB`);
         this.session = sessionDoc.sessionData;
-        this.capturedSessionData = sessionDoc.sessionData; // ✅ MANTENER EN SYNC
+        this.capturedSessionData = sessionDoc.sessionData; // Mantener en sincronización
         return sessionDoc.sessionData;
       } else {
-        console.log(`[MongoDB Auth] ⚠️ loadCreds: No hay credenciales en MongoDB`);
+        console.log(`[MongoDB Auth] loadCreds: No hay credenciales en MongoDB`);
         return null;
       }
     } catch (err) {
@@ -122,17 +122,17 @@ export class MongoDBAuth extends LocalAuth {
     }
   }
 
-  // 🔑 GETTER PARA SESSION - interceptar accesos a this.session
+  // Getter para session - interceptar accesos a this.session
   get session() {
     return this._session;
   }
 
-  // 🔑 SETTER PARA SESSION - interceptar asignaciones a this.session
+  // Setter para session - interceptar asignaciones a this.session
   set session(value) {
     if (value && typeof value === 'object') {
       this._session = value;
-      this.capturedSessionData = value; // ✅ MANTENER EN SYNC
-      console.log(`[MongoDB Auth] 🔄 Session actualizada (${Object.keys(value).length} claves)`);
+      this.capturedSessionData = value; // Mantener en sincronización
+      console.log(`[MongoDB Auth] Session actualizada (${Object.keys(value).length} claves)`);
     }
   }
 
@@ -144,21 +144,21 @@ export class MongoDBAuth extends LocalAuth {
       
       this.lastSaveTime = now;
       
-      // 🔑 IMPORTANTE: Intentar obtener sesión en este orden
+      // Obtener sesión en este orden de prioridad
       const sessionToSave = sessionData || this.capturedSessionData || this.session;
       
       if (!sessionToSave || Object.keys(sessionToSave).length === 0) {
-        // ⚠️ Si no hay sesión pero el cliente está listo, usar un marcador
+        // Si no hay sesión pero el cliente está listo, usar un marcador
         // para que sepa que TIENE que estar autenticado
         const existingDoc = await WhatsAppSession.findOne({ clientId: this.clientId });
         
         if (existingDoc && existingDoc.sessionData && Object.keys(existingDoc.sessionData).length > 0) {
-          // ✅ Ya hay sesión en MongoDB, no hacer nada en esta ocasión
-          console.log(`[MongoDB Auth] ℹ️ Sesión ya existe en MongoDB, saltando`);
+          // Ya hay sesión en MongoDB, no hacer nada en esta ocasión
+          console.log(`[MongoDB Auth] Sesión ya existe en MongoDB, saltando`);
           return;
         }
         
-        console.warn(`[MongoDB Auth] ⚠️ No hay sesión para guardar`);
+        console.warn(`[MongoDB Auth] No hay sesión para guardar`);
         return;
       }
 
@@ -175,7 +175,7 @@ export class MongoDBAuth extends LocalAuth {
         { upsert: true }
       );
       
-      console.log(`[MongoDB Auth] ✅ Sesión guardada en MongoDB`);
+      console.log(`[MongoDB Auth] Sesión guardada en MongoDB`);
     } catch (err) {
       console.error(`[MongoDB Auth] Error guardando sesión:`, err.message);
     }
@@ -239,7 +239,7 @@ export async function deleteSessionFromMongo(clientId) {
   }
 }
 
-// ✅ NUEVA: Limpiar carpeta .wwebjs_cache si existe (para Render)
+// Limpiar carpeta .wwebjs_cache si existe (para Render)
 export async function cleanupLocalCache() {
   try {
     const fs = await import('fs').then(m => m.default);
@@ -253,7 +253,7 @@ export async function cleanupLocalCache() {
       
       // Eliminar recursivamente
       fs.rmSync(cacheDir, { recursive: true, force: true });
-      console.log(`[Cache] ✅ .wwebjs_cache eliminada`);
+      console.log(`[Cache] .wwebjs_cache eliminada`);
     } else {
       console.log(`[Cache] No hay carpeta .wwebjs_cache`);
     }

@@ -99,15 +99,15 @@ client.on("disconnected", (reason) => {
 });
 
 client.on("change_state", async (state) => {
-  console.log("➡️ Estado del cliente:", state);
+  console.log("Estado del cliente:", state);
   if (state === "CONNECTED" && !readyAt) {
     readyAt = Date.now();
     await markAsReadyInMongo("default");
-    console.log("✅ Cliente listo y conectado (desde change_state)");
+    console.log("Cliente listo y conectado (desde change_state)");
   }
 });
 
-// 🔑 CRÍTICO: Hook de mensajes para mantener sesión actualizada
+// Hook de mensajes para mantener sesión actualizada
 client.on("message", async (msg) => {
   // Cada vez que llega un mensaje, intentar guardar la sesión
   // Esto es un trigger para mantener la sesión fresca en MongoDB
