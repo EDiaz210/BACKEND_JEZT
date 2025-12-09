@@ -100,6 +100,7 @@ export const enviarPregunta = async (req, res) => {
         headers,
         body: JSON.stringify({
           pregunta: question,
+          historial: req.body.historial || [],  // ✅ PASAR HISTORIAL DE FRONTEND
           streaming: true,
           rol: tipoUsuario,
           usuario_id: usuario._id.toString()
