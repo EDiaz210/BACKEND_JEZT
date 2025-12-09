@@ -20,7 +20,6 @@ import {
     detalleEstudiante
 
 } from "../controllers/User_controllers.js";
-import { verificarTokenJWT } from '../middlewares/JWT.js'
 import upload from '../middlewares/Upload.js'
 
 const router = express.Router();
